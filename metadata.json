@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Informasi Keluarga Terpadu",
+  "description": "Sistem Informasi Keluarga Terpadu (SIKT) untuk mengelola silsilah, kas keluarga, agenda kegiatan, galeri foto, dan arsip dokumen keluarga.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
