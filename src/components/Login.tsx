@@ -16,7 +16,7 @@ export default function Login({ state, onLogin, onCancel }: LoginProps) {
 
   // Suggested demo passwords for Admin
   const demoPasswords: Record<string, string> = {
-    'budi@keluarga.com': 'admin123',
+    'bowo@gmail.com': 'admin123',
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,7 +73,7 @@ export default function Login({ state, onLogin, onCancel }: LoginProps) {
               </span>
               <input
                 type="email"
-                placeholder="Email Administrator (Contoh: budi@keluarga.com)"
+                placeholder="Email Administrator (Contoh: bowo@gmail.com)"
                 required
                 value={email}
                 onChange={(e) => {

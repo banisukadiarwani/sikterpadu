@@ -4,7 +4,7 @@ export const SEED_USERS: User[] = [
   {
     id: 'u_1',
     nama: 'Budi Sukadi Arwani',
-    email: 'budi@keluarga.com',
+    email: 'bowo@gmail.com',
     role: 'Administrator',
     status: 'Aktif',
   },
