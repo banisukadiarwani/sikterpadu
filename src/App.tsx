@@ -27,6 +27,10 @@ export default function App() {
     const hasCache = !!localStorage.getItem('sikt_app_state');
     return hasCache ? 'cache' : 'dummy';
   });
+
+  // Initial loading state (Requirement 3, 4)
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Menginisialisasi...');
   
   // Route Guard: Guest cannot access admin page (settings)
   useEffect(() => {
@@ -39,32 +43,34 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
-  // Auto-load Google Sheets data on startup (Requirement 3, 4, 7)
+  // Auto-load Google Sheets data on startup (Requirement 3, 4, 7, 9)
   useEffect(() => {
     const autoLoad = async () => {
       const envUrl = ((import.meta as any).env.VITE_APPS_SCRIPT_URL || '').trim();
       if (!envUrl) {
         const hasCache = !!localStorage.getItem('sikt_app_state');
         setDbStatus(hasCache ? 'cache' : 'dummy');
+        setIsLoadingInitial(false);
         return;
       }
 
       setIsSyncing(true);
-      setSyncStatus('Memuat data terbaru dari Google Sheets...');
+      setLoadingMessage('Menghubungkan ke Google Sheets...');
       
       const res = await pullFromGoogleSheets(envUrl);
       if (res.success && res.data) {
         const liveData = res.data;
+        // Requirement 9: Hapus data dummy saat cloud berhasil (all data comes from Google Sheets)
         const updatedState: SIKTState = {
           ...state,
-          users: liveData.users && liveData.users.length > 0 ? liveData.users : state.users,
-          anggota: liveData.anggota && liveData.anggota.length > 0 ? liveData.anggota : state.anggota,
-          kasMasuk: liveData.kasMasuk && liveData.kasMasuk.length > 0 ? liveData.kasMasuk : state.kasMasuk,
-          kasKeluar: liveData.kasKeluar && liveData.kasKeluar.length > 0 ? liveData.kasKeluar : state.kasKeluar,
-          agenda: liveData.agenda && liveData.agenda.length > 0 ? liveData.agenda : state.agenda,
-          pesertaAcara: liveData.pesertaAcara && liveData.pesertaAcara.length > 0 ? liveData.pesertaAcara : state.pesertaAcara,
-          galeri: liveData.galeri && liveData.galeri.length > 0 ? liveData.galeri : state.galeri,
-          dokumen: liveData.dokumen && liveData.dokumen.length > 0 ? liveData.dokumen : state.dokumen,
+          users: liveData.users || [],
+          anggota: liveData.anggota || [],
+          kasMasuk: liveData.kasMasuk || [],
+          kasKeluar: liveData.kasKeluar || [],
+          agenda: liveData.agenda || [],
+          pesertaAcara: liveData.pesertaAcara || [],
+          galeri: liveData.galeri || [],
+          dokumen: liveData.dokumen || [],
           appsScriptUrl: envUrl,
         };
         
@@ -78,11 +84,64 @@ export default function App() {
         setSyncStatus(`⚠️ Gagal memuat data Cloud. Menggunakan ${hasCache ? 'Cache Lokal' : 'Data Dummy'}.`);
       }
       setIsSyncing(false);
-      setTimeout(() => setSyncStatus(null), 4000);
+      setIsLoadingInitial(false);
     };
 
     autoLoad();
   }, []);
+
+  // Auto-refresh every 60 seconds (Requirement 11)
+  useEffect(() => {
+    const envUrl = ((import.meta as any).env.VITE_APPS_SCRIPT_URL || '').trim();
+    if (!envUrl) return;
+
+    const intervalId = setInterval(async () => {
+      if (isSyncing || isLoadingInitial) return;
+      
+      try {
+        const res = await pullFromGoogleSheets(envUrl);
+        if (res.success && res.data) {
+          const liveData = res.data;
+          
+          setState(prevState => {
+            const merged: SIKTState = {
+              ...prevState,
+              users: liveData.users || [],
+              anggota: liveData.anggota || [],
+              kasMasuk: liveData.kasMasuk || [],
+              kasKeluar: liveData.kasKeluar || [],
+              agenda: liveData.agenda || [],
+              pesertaAcara: liveData.pesertaAcara || [],
+              galeri: liveData.galeri || [],
+              dokumen: liveData.dokumen || [],
+              appsScriptUrl: envUrl,
+            };
+            
+            const isDifferent = 
+              JSON.stringify(prevState.anggota) !== JSON.stringify(merged.anggota) ||
+              JSON.stringify(prevState.kasMasuk) !== JSON.stringify(merged.kasMasuk) ||
+              JSON.stringify(prevState.kasKeluar) !== JSON.stringify(merged.kasKeluar) ||
+              JSON.stringify(prevState.agenda) !== JSON.stringify(merged.agenda) ||
+              JSON.stringify(prevState.pesertaAcara) !== JSON.stringify(merged.pesertaAcara) ||
+              JSON.stringify(prevState.galeri) !== JSON.stringify(merged.galeri) ||
+              JSON.stringify(prevState.dokumen) !== JSON.stringify(merged.dokumen) ||
+              JSON.stringify(prevState.users) !== JSON.stringify(merged.users);
+              
+            if (isDifferent) {
+              saveLocalState(merged);
+              setDbStatus('cloud');
+              return merged;
+            }
+            return prevState;
+          });
+        }
+      } catch (err) {
+        console.error('Auto-refresh failed:', err);
+      }
+    }, 60000);
+
+    return () => clearInterval(intervalId);
+  }, [isSyncing, isLoadingInitial]);
 
   // Background sync handler: pushes to Sheets, then automatically pulls back to ensure alignment (Requirement 6)
   const triggerBackgroundSync = async (newState: SIKTState) => {
@@ -99,14 +158,14 @@ export default function App() {
           const liveData = pullRes.data;
           const mergedState: SIKTState = {
             ...newState,
-            users: liveData.users && liveData.users.length > 0 ? liveData.users : newState.users,
-            anggota: liveData.anggota && liveData.anggota.length > 0 ? liveData.anggota : newState.anggota,
-            kasMasuk: liveData.kasMasuk && liveData.kasMasuk.length > 0 ? liveData.kasMasuk : newState.kasMasuk,
-            kasKeluar: liveData.kasKeluar && liveData.kasKeluar.length > 0 ? liveData.kasKeluar : newState.kasKeluar,
-            agenda: liveData.agenda && liveData.agenda.length > 0 ? liveData.agenda : newState.agenda,
-            pesertaAcara: liveData.pesertaAcara && liveData.pesertaAcara.length > 0 ? liveData.pesertaAcara : newState.pesertaAcara,
-            galeri: liveData.galeri && liveData.galeri.length > 0 ? liveData.galeri : newState.galeri,
-            dokumen: liveData.dokumen && liveData.dokumen.length > 0 ? liveData.dokumen : newState.dokumen,
+            users: liveData.users || [],
+            anggota: liveData.anggota || [],
+            kasMasuk: liveData.kasMasuk || [],
+            kasKeluar: liveData.kasKeluar || [],
+            agenda: liveData.agenda || [],
+            pesertaAcara: liveData.pesertaAcara || [],
+            galeri: liveData.galeri || [],
+            dokumen: liveData.dokumen || [],
           };
           setState(mergedState);
           saveLocalState(mergedState);
@@ -146,8 +205,8 @@ export default function App() {
       newState.dokumen !== state.dokumen ||
       newState.users !== state.users;
 
-    // Auto-trigger sync if Apps Script URL is set and sync is not skipped, not running, and data has actually mutated
-    if (newState.appsScriptUrl && !skipSync && !isSyncing && hasDataChanged) {
+    // Auto-trigger sync if Apps Script URL is set and sync is not skipped, not running, and data has actually mutated (Requirement 12)
+    if (newState.appsScriptUrl && !skipSync && !isSyncing && !isLoadingInitial && hasDataChanged) {
       triggerBackgroundSync(newState);
     }
   };
@@ -163,14 +222,14 @@ export default function App() {
       const liveData = res.data;
       const updatedState: SIKTState = {
         ...state,
-        users: liveData.users && liveData.users.length > 0 ? liveData.users : state.users,
-        anggota: liveData.anggota && liveData.anggota.length > 0 ? liveData.anggota : state.anggota,
-        kasMasuk: liveData.kasMasuk && liveData.kasMasuk.length > 0 ? liveData.kasMasuk : state.kasMasuk,
-        kasKeluar: liveData.kasKeluar && liveData.kasKeluar.length > 0 ? liveData.kasKeluar : state.kasKeluar,
-        agenda: liveData.agenda && liveData.agenda.length > 0 ? liveData.agenda : state.agenda,
-        pesertaAcara: liveData.pesertaAcara && liveData.pesertaAcara.length > 0 ? liveData.pesertaAcara : state.pesertaAcara,
-        galeri: liveData.galeri && liveData.galeri.length > 0 ? liveData.galeri : state.galeri,
-        dokumen: liveData.dokumen && liveData.dokumen.length > 0 ? liveData.dokumen : state.dokumen,
+        users: liveData.users || [],
+        anggota: liveData.anggota || [],
+        kasMasuk: liveData.kasMasuk || [],
+        kasKeluar: liveData.kasKeluar || [],
+        agenda: liveData.agenda || [],
+        pesertaAcara: liveData.pesertaAcara || [],
+        galeri: liveData.galeri || [],
+        dokumen: liveData.dokumen || [],
       };
       
       updateState(updatedState, true);
@@ -195,14 +254,14 @@ export default function App() {
         const liveData = res.data;
         const mergedState: SIKTState = {
           ...state,
-          users: liveData.users && liveData.users.length > 0 ? liveData.users : state.users,
-          anggota: liveData.anggota && liveData.anggota.length > 0 ? liveData.anggota : state.anggota,
-          kasMasuk: liveData.kasMasuk && liveData.kasMasuk.length > 0 ? liveData.kasMasuk : state.kasMasuk,
-          kasKeluar: liveData.kasKeluar && liveData.kasKeluar.length > 0 ? liveData.kasKeluar : state.kasKeluar,
-          agenda: liveData.agenda && liveData.agenda.length > 0 ? liveData.agenda : state.agenda,
-          pesertaAcara: liveData.pesertaAcara && liveData.pesertaAcara.length > 0 ? liveData.pesertaAcara : state.pesertaAcara,
-          galeri: liveData.galeri && liveData.galeri.length > 0 ? liveData.galeri : state.galeri,
-          dokumen: liveData.dokumen && liveData.dokumen.length > 0 ? liveData.dokumen : state.dokumen,
+          users: liveData.users || [],
+          anggota: liveData.anggota || [],
+          kasMasuk: liveData.kasMasuk || [],
+          kasKeluar: liveData.kasKeluar || [],
+          agenda: liveData.agenda || [],
+          pesertaAcara: liveData.pesertaAcara || [],
+          galeri: liveData.galeri || [],
+          dokumen: liveData.dokumen || [],
         };
         setState(mergedState);
         saveLocalState(mergedState);
@@ -412,6 +471,36 @@ export default function App() {
       </div>
     </div>
   );
+
+  // If the app is initializing and pulling data for the first time, show a beautiful loading screen (Requirement 4)
+  if (isLoadingInitial) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
+        {/* Background Decorative Blobs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-700/10 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-700/10 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
+
+        <div className="w-full max-w-sm text-center space-y-6 relative z-10">
+          <div className="inline-flex items-center justify-center p-5 bg-emerald-600 rounded-3xl text-white font-black tracking-widest text-2xl shadow-xl shadow-emerald-950/40 animate-bounce">
+            SIKT
+          </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-lg font-extrabold text-slate-100 tracking-tight">Memuat Database Keluarga...</h1>
+            <p className="text-xs text-slate-400 font-semibold tracking-wide animate-pulse">
+              {loadingMessage}
+            </p>
+          </div>
+
+          <div className="flex justify-center items-center gap-1.5 pt-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]"></div>
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]"></div>
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // If showLogin is true, show the login page
   if (showLogin) {
