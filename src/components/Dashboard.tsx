@@ -369,7 +369,7 @@ export default function Dashboard({ state, onUpdateState, setActiveTab, onShowLo
               <Sparkles className="h-3 w-3" /> Dashboard Terpadu
             </span>
             <h1 className="text-2xl sm:text-3xl font-display font-extrabold tracking-tight">
-              Selamat Datang di SIKT
+              Selamat Datang di SIKT Bani Sukadi Arwani
             </h1>
             <p className="text-slate-300 mt-2 max-w-xl text-xs sm:text-sm leading-relaxed">
               Sistem Informasi Keluarga Terpadu &ndash; media silaturahmi digital, pencatatan silsilah, kas bersama, agenda pertemuan, dan arsip kenangan keluarga.
