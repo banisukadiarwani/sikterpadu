@@ -472,7 +472,7 @@ export default function Dashboard({ state, onUpdateState, setActiveTab, onShowLo
               {upcomingAgenda ? upcomingAgenda.namaAcara : 'Tidak ada agenda'}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              {upcomingAgenda ? formatDate(upcomingAgenda.tanggal) : '-'}
+              {upcomingAgenda ? `${formatDate(upcomingAgenda.tanggal)} • ${upcomingAgenda.waktu ? (upcomingAgenda.waktu.toUpperCase().endsWith('WIB') ? upcomingAgenda.waktu : `${upcomingAgenda.waktu} WIB`) : '10:00 WIB'}` : '-'}
             </p>
           </div>
         </div>
@@ -530,7 +530,10 @@ export default function Dashboard({ state, onUpdateState, setActiveTab, onShowLo
                 <div className="mt-4 space-y-3">
                   <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50 space-y-1">
                     <p className="text-sm font-semibold text-indigo-900">{upcomingAgenda.namaAcara}</p>
-                    <p className="text-xs text-indigo-700/80 font-mono">📅 {formatDate(upcomingAgenda.tanggal)}</p>
+                    <p className="text-xs text-indigo-700/80 font-mono flex flex-wrap gap-x-3 gap-y-1">
+                      <span>📅 {formatDate(upcomingAgenda.tanggal)}</span>
+                      <span>⏰ {upcomingAgenda.waktu ? (upcomingAgenda.waktu.toUpperCase().endsWith('WIB') ? upcomingAgenda.waktu : `${upcomingAgenda.waktu} WIB`) : '10:00 WIB'}</span>
+                    </p>
                   </div>
                   
                   <div className="text-xs text-slate-600 space-y-1.5 pt-1">
